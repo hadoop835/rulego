@@ -14,8 +14,13 @@ import (
 
 const (
 	// base HTTP paths.
-	apiVersion  = "v1"
-	apiBasePath = "/api/" + apiVersion
+	apiVersion       = "v1"
+	apiBasePath      = "/api/" + apiVersion
+	moduleComponents = "components"
+	moduleFlows      = "chains"
+	moduleNodes      = "nodes"
+	moduleLocales    = "locales"
+	moduleLogs       = "logs"
 )
 
 // NewRestServe rest服务 接收端点
@@ -45,38 +50,39 @@ func NewRestServe(config config.Config) *rest.Endpoint {
 		// 返回 204 状态码
 		w.WriteHeader(http.StatusNoContent)
 	}))
+
 	//创建获取所有规则引擎组件列表路由
 	restEndpoint.GET(controller.ComponentsRouter(apiBasePath + "/components"))
-	//获取所有规则链列表
-	restEndpoint.GET(controller.ListDslRouter(apiBasePath + "/rules"))
-	//获取规则链DSL
-	restEndpoint.GET(controller.GetDslRouter(apiBasePath + "/rule/:chainId"))
-	//新增/修改规则链DSL
-	restEndpoint.POST(controller.SaveDslRouter(apiBasePath + "/rule/:chainId"))
-	//删除规则链
-	restEndpoint.DELETE(controller.DeleteDslRouter(apiBasePath + "/rule/:chainId"))
-	//保存规则链附加信息
-	restEndpoint.POST(controller.SaveBaseInfo(apiBasePath + "/rule/:chainId/saveInfo"))
-	//保存规则链配置信息
-	restEndpoint.POST(controller.SaveConfiguration(apiBasePath + "/rule/:chainId/saveConfig/:varType"))
-	//执行规则链,并得到规则链处理结果
-	restEndpoint.POST(controller.ExecuteRuleRouter(apiBasePath + "/rule/:chainId/execute/:msgType"))
-	//处理数据上报请求，并转发到规则引擎，不等待规则引擎处理结果
-	restEndpoint.POST(controller.PostMsgRouter(apiBasePath + "/rule/:chainId/notify/:msgType"))
 
-	//处理数据上报请求，并转发到规则引擎
-	restEndpoint.POST(controller.PostMsgRouter(apiBasePath + "/msg/:chainId/:msgType"))
+	//获取所有规则链列表
+	restEndpoint.GET(controller.ListDslRouter(apiBasePath + "/" + moduleFlows))
+	//获取规则链DSL
+	restEndpoint.GET(controller.GetDslRouter(apiBasePath + "/" + moduleFlows + "/:id"))
+	//新增/修改规则链DSL
+	restEndpoint.POST(controller.SaveDslRouter(apiBasePath + "/" + moduleFlows + "/:id"))
+	//删除规则链
+	restEndpoint.DELETE(controller.DeleteDslRouter(apiBasePath + "/" + moduleFlows + "/:id"))
+	//保存规则链附加信息
+	restEndpoint.POST(controller.SaveBaseInfo(apiBasePath + "/" + moduleFlows + "/:id/base"))
+	//保存规则链配置信息
+	restEndpoint.POST(controller.SaveConfiguration(apiBasePath + "/" + moduleFlows + "/:id/config/:varType"))
+	//执行规则链,并得到规则链处理结果
+	restEndpoint.POST(controller.ExecuteRuleRouter(apiBasePath + "/" + moduleFlows + "/:id/execute/:msgType"))
+	//处理数据上报请求，并转发到规则引擎，不等待规则引擎处理结果
+	restEndpoint.POST(controller.PostMsgRouter(apiBasePath + "/" + moduleFlows + "/:id/notify/:msgType"))
+	//部署或者下线规则链
+	restEndpoint.POST(controller.OperateRule(apiBasePath + "/" + moduleFlows + "/:id/operate/:type"))
 
 	//获取节点调试数据
-	restEndpoint.GET(controller.GetDebugDataRouter(apiBasePath + "/event/debug"))
+	restEndpoint.GET(controller.GetDebugDataRouter(apiBasePath + "/" + moduleLogs + "/debug"))
 
-	restEndpoint.GET(controller.GetRunsRouter(apiBasePath + "/event/runs"))
-	restEndpoint.DELETE(controller.DeleteRunsRouter(apiBasePath + "/event/runs"))
-
-	restEndpoint.POST(controller.TestWebhookRouter(apiBasePath + "/webhook/:integrationType/:username/:chainId"))
+	restEndpoint.GET(controller.GetRunsRouter(apiBasePath + "/" + moduleLogs))
+	restEndpoint.DELETE(controller.DeleteRunsRouter(apiBasePath + "/" + moduleLogs + "/:id/:chainId"))
 
 	//获取所有共享组件
-	restEndpoint.GET(controller.ListNodePool(apiBasePath + "/node_pool/list"))
+	restEndpoint.GET(controller.ListNodePool(apiBasePath + "/" + moduleNodes + "/shared"))
+	restEndpoint.GET(controller.Locales(apiBasePath + "/" + moduleLocales))
+	restEndpoint.POST(controller.SaveLocales(apiBasePath + "/" + moduleLocales))
 
 	//静态文件映射
 	loadServeFiles(config, restEndpoint)

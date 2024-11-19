@@ -1,6 +1,7 @@
 package config
 
 import (
+	"examples/server/internal/constants"
 	"github.com/rulego/rulego/api/types"
 	"time"
 )
@@ -13,6 +14,9 @@ func Get() *Config {
 
 func Set(c Config) {
 	C = c
+	if C.EventBusChainId == "" {
+		C.EventBusChainId = constants.KeyDefaultIntegrationChainId
+	}
 }
 
 type Config struct {
@@ -48,6 +52,8 @@ type Config struct {
 	EndpointEnabled *bool `ini:"endpoint_enabled"`
 	// SecretKey 密钥
 	SecretKey *string `ini:"secret_key"`
+	// EventBusChainId 核心规则链Id
+	EventBusChainId string `ini:"event_bus_chain_id"`
 }
 type Mqtt struct {
 	//是否启用mqtt

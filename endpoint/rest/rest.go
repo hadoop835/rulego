@@ -52,8 +52,13 @@ import (
 )
 
 const (
-	ContentTypeKey  = "Content-Type"
-	JsonContextType = "application/json"
+	ContentTypeKey                      = "Content-Type"
+	JsonContextType                     = "application/json"
+	HeaderKeyAccessControlRequestMethod = "Access-Control-Request-Method"
+	HeaderKeyAccessControlAllowMethods  = "Access-Control-Allow-Methods"
+	HeaderKeyAccessControlAllowHeaders  = "Access-Control-Allow-Headers"
+	HeaderKeyAccessControlAllowOrigin   = "Access-Control-Allow-Origin"
+	HeaderValueAll                      = "*"
 )
 
 // Type 组件类型
@@ -224,6 +229,8 @@ type Config struct {
 	Server      string
 	CertFile    string
 	CertKeyFile string
+	//是否允许跨域
+	AllowCors bool
 }
 
 // Rest 接收端端点
@@ -573,6 +580,26 @@ func (rest *Rest) Started() bool {
 func (rest *Rest) initServer() (*Rest, error) {
 	if rest.router == nil {
 		rest.router = httprouter.New()
+		//设置跨域
+		if rest.Config.AllowCors {
+			rest.GlobalOPTIONS(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Header.Get(HeaderKeyAccessControlRequestMethod) != "" {
+					// 设置 CORS 相关的响应头
+					header := w.Header()
+					header.Set(HeaderKeyAccessControlAllowMethods, "*")
+					header.Set(HeaderKeyAccessControlAllowHeaders, "*")
+					header.Set(HeaderKeyAccessControlAllowOrigin, "*")
+				}
+				// 返回 204 状态码
+				w.WriteHeader(http.StatusNoContent)
+			}))
+			rest.AddInterceptors(func(router endpoint.Router, exchange *endpoint.Exchange) bool {
+				exchange.Out.Headers().Set(ContentTypeKey, JsonContextType)
+				exchange.Out.Headers().Set(HeaderKeyAccessControlAllowOrigin, "*")
+				return true
+			})
+		}
+
 	}
 	return rest, nil
 }

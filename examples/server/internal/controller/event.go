@@ -20,11 +20,11 @@ func GetDebugDataRouter(url string) endpointApi.Router {
 		username := msg.Metadata.GetValue(constants.KeyUsername)
 		var current = 1
 		var pageSize = 20
-		currentStr := msg.Metadata.GetValue(constants.KeyCurrent)
+		currentStr := msg.Metadata.GetValue(constants.KeyPage)
 		if i, err := strconv.Atoi(currentStr); err == nil {
 			current = i
 		}
-		pageSizeStr := msg.Metadata.GetValue(constants.KeyPageSize)
+		pageSizeStr := msg.Metadata.GetValue(constants.KeySize)
 		if i, err := strconv.Atoi(pageSizeStr); err == nil {
 			pageSize = i
 		}
@@ -68,11 +68,11 @@ func GetRunsRouter(url string) endpointApi.Router {
 		if id == "" {
 			var current = 1
 			var pageSize = 20
-			currentStr := msg.Metadata.GetValue(constants.KeyCurrent)
+			currentStr := msg.Metadata.GetValue(constants.KeyPage)
 			if i, err := strconv.Atoi(currentStr); err == nil {
 				current = i
 			}
-			pageSizeStr := msg.Metadata.GetValue(constants.KeyPageSize)
+			pageSizeStr := msg.Metadata.GetValue(constants.KeySize)
 			if i, err := strconv.Atoi(pageSizeStr); err == nil {
 				pageSize = i
 			}

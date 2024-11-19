@@ -17,6 +17,7 @@ import (
 	"github.com/rulego/rulego/utils/json"
 	"net/http"
 	"path"
+	"strconv"
 )
 
 var AuthProcess = func(router endpointApi.Router, exchange *endpointApi.Exchange) bool {
@@ -72,11 +73,10 @@ func ComponentsRouter(url string) endpointApi.Router {
 func GetDslRouter(url string) endpointApi.Router {
 	return endpoint.NewRouter().From(url).Process(AuthProcess).Process(func(router endpointApi.Router, exchange *endpointApi.Exchange) bool {
 		msg := exchange.In.GetMsg()
-		chainId := msg.Metadata.GetValue(constants.KeyChainId)
-		nodeId := msg.Metadata.GetValue(constants.KeyNodeId)
+		chainId := msg.Metadata.GetValue(constants.KeyId)
 		username := msg.Metadata.GetValue(constants.KeyUsername)
 		if s, ok := service.UserRuleEngineServiceImpl.Get(username); ok {
-			if def, err := s.GetDsl(chainId, nodeId); err == nil {
+			if def, err := s.Get(chainId); err == nil {
 				exchange.Out.SetBody(def)
 			} else {
 				exchange.Out.SetStatusCode(http.StatusNotFound)
@@ -93,11 +93,10 @@ func GetDslRouter(url string) endpointApi.Router {
 func SaveDslRouter(url string) endpointApi.Router {
 	return endpoint.NewRouter().From(url).Process(AuthProcess).Process(func(router endpointApi.Router, exchange *endpointApi.Exchange) bool {
 		msg := exchange.In.GetMsg()
-		chainId := msg.Metadata.GetValue(constants.KeyChainId)
-		nodeId := msg.Metadata.GetValue(constants.KeyNodeId)
+		chainId := msg.Metadata.GetValue(constants.KeyId)
 		username := msg.Metadata.GetValue(constants.KeyUsername)
 		if s, ok := service.UserRuleEngineServiceImpl.Get(username); ok {
-			if err := s.SaveDsl(chainId, nodeId, exchange.In.Body()); err == nil {
+			if err := s.Save(chainId, exchange.In.Body()); err == nil {
 				exchange.Out.SetStatusCode(http.StatusOK)
 			} else {
 				logger.Logger.Println(err)
@@ -116,9 +115,38 @@ func ListDslRouter(url string) endpointApi.Router {
 	return endpoint.NewRouter().From(url).Process(AuthProcess).Process(func(router endpointApi.Router, exchange *endpointApi.Exchange) bool {
 		msg := exchange.In.GetMsg()
 		username := msg.Metadata.GetValue(constants.KeyUsername)
+		keywords := msg.Metadata.GetValue(constants.KeyKeywords)
+		chainTypeStr := msg.Metadata.GetValue(constants.KeyType)
+		var page = 1
+		var size = 20
+		currentStr := msg.Metadata.GetValue(constants.KeyPage)
+		if i, err := strconv.Atoi(currentStr); err == nil {
+			page = i
+		}
+		pageSizeStr := msg.Metadata.GetValue(constants.KeySize)
+		if i, err := strconv.Atoi(pageSizeStr); err == nil {
+			size = i
+		}
+		chainType := 0
+		if i, err := strconv.Atoi(chainTypeStr); err == nil {
+			chainType = i
+		}
+
 		if s, ok := service.UserRuleEngineServiceImpl.Get(username); ok {
-			if list, err := json.Marshal(s.List()); err == nil {
-				exchange.Out.SetBody(list)
+			list, count, err := s.List(keywords, chainType, size, page)
+			if err != nil {
+				exchange.Out.SetStatusCode(http.StatusInternalServerError)
+				exchange.Out.SetBody([]byte(err.Error()))
+				return true
+			}
+			result := map[string]interface{}{
+				"total": count,
+				"page":  page,
+				"size":  size,
+				"items": list,
+			}
+			if v, err := json.Marshal(result); err == nil {
+				exchange.Out.SetBody(v)
 			} else {
 				logger.Logger.Println(err)
 				exchange.Out.SetStatusCode(http.StatusBadRequest)
@@ -135,7 +163,7 @@ func ListDslRouter(url string) endpointApi.Router {
 func DeleteDslRouter(url string) endpointApi.Router {
 	return endpoint.NewRouter().From(url).Process(AuthProcess).Process(func(router endpointApi.Router, exchange *endpointApi.Exchange) bool {
 		msg := exchange.In.GetMsg()
-		chainId := msg.Metadata.GetValue(constants.KeyChainId)
+		chainId := msg.Metadata.GetValue(constants.KeyId)
 		username := msg.Metadata.GetValue(constants.KeyUsername)
 		if s, ok := service.UserRuleEngineServiceImpl.Get(username); ok {
 			if err := s.Delete(chainId); err == nil {
@@ -181,7 +209,7 @@ func SaveBaseInfo(url string) endpointApi.Router {
 func SaveConfiguration(url string) endpointApi.Router {
 	return endpoint.NewRouter().From(url).Process(AuthProcess).Process(func(router endpointApi.Router, exchange *endpointApi.Exchange) bool {
 		msg := exchange.In.GetMsg()
-		chainId := msg.Metadata.GetValue(constants.KeyChainId)
+		chainId := msg.Metadata.GetValue(constants.KeyId)
 		username := msg.Metadata.GetValue(constants.KeyUsername)
 		varType := msg.Metadata.GetValue(constants.KeyVarType)
 		var req interface{}
@@ -233,7 +261,7 @@ func ExecuteRuleRouter(url string) endpointApi.Router {
 	}).Process(func(router endpointApi.Router, exchange *endpointApi.Exchange) bool {
 		exchange.Out.Headers().Set("Content-Type", "application/json")
 		return true
-	}).To("chain:${chainId}").SetOpts(opts...).Process(func(router endpointApi.Router, exchange *endpointApi.Exchange) bool {
+	}).To("chain:${id}").SetOpts(opts...).Process(func(router endpointApi.Router, exchange *endpointApi.Exchange) bool {
 		err := exchange.Out.GetError()
 		if err != nil {
 			//错误
@@ -275,7 +303,36 @@ func PostMsgRouter(url string) endpointApi.Router {
 		var paths = []string{config.C.DataDir, constants.DirWorkflows, username, constants.DirWorkflowsRule}
 		msg.Metadata.PutValue(constants.KeyWorkDir, path.Join(paths...))
 		return true
-	}).To("chain:${chainId}").SetOpts(opts...).End()
+	}).To("chain:${id}").SetOpts(opts...).End()
+}
+
+func OperateRule(url string) endpointApi.Router {
+	return endpoint.NewRouter().From(url).Process(AuthProcess).Process(func(router endpointApi.Router, exchange *endpointApi.Exchange) bool {
+		msg := exchange.In.GetMsg()
+		chainId := msg.Metadata.GetValue(constants.KeyId)
+		opType := msg.Metadata.GetValue(constants.KeyType)
+		username := msg.Metadata.GetValue(constants.KeyUsername)
+		if s, ok := service.UserRuleEngineServiceImpl.Get(username); ok {
+			if opType == constants.KeyDeploy {
+				if err := s.Deploy(chainId); err != nil {
+					exchange.Out.SetStatusCode(http.StatusBadRequest)
+					exchange.Out.SetBody([]byte(err.Error()))
+				}
+			} else if opType == constants.KeyUndeploy {
+				if err := s.Undeploy(chainId); err != nil {
+					exchange.Out.SetStatusCode(http.StatusBadRequest)
+					exchange.Out.SetBody([]byte(err.Error()))
+				}
+			} else {
+				exchange.Out.SetStatusCode(http.StatusBadRequest)
+				exchange.Out.SetBody([]byte("没有该操作类型:" + opType))
+			}
+
+		} else {
+			return userNotFound(username, exchange)
+		}
+		return true
+	}).End()
 }
 
 // userNotFound 用户不存在
